@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -26,6 +27,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
 }
 
 dependencies {
@@ -35,11 +40,10 @@ dependencies {
     implementation libs.activity
     implementation libs.constraintlayout
 
-    // ExoPlayer
-    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
+    // Kotlin
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.20'
 
-    // FFmpeg - 使用Jitpack的版本
-    implementation 'com.github.tanersener:mobile-ffmpeg:v4.4.LTS'
+
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1'
