@@ -1,0 +1,188 @@
+package com.example.myapplication.cover
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.View
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.example.myapplication.R
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+
+/**
+ * JianYing/CapCut-style cover picker: drag a block along a video filmstrip to choose a
+ * frame as the cover, or fall back to a static image from the album. Returns the choice
+ * via [CoverSelectionContract].
+ */
+class CoverSelectionActivity : AppCompatActivity() {
+
+    private lateinit var imagePreview: ImageView
+    private lateinit var filmstripContainer: LinearLayout
+    private lateinit var selectionOverlay: CoverSelectionOverlayView
+
+    private var frameExtractor: FrameExtractor? = null
+    private var previewJob: Job? = null
+    private var pendingResult: CoverResult? = null
+
+    private val pickImage =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+                pendingResult = CoverResult.StaticImage(uri)
+                imagePreview.setImageURI(uri)
+            }
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_cover_selection)
+
+        val videoUri: Uri? = intent.getParcelableExtraCompat(CoverSelectionContract.EXTRA_VIDEO_URI)
+        if (videoUri == null) {
+            setResult(RESULT_CANCELED)
+            finish()
+            return
+        }
+
+        imagePreview = findViewById(R.id.image_preview)
+        filmstripContainer = findViewById(R.id.filmstrip_container)
+        selectionOverlay = findViewById(R.id.selection_overlay)
+
+        findViewById<View>(R.id.btn_cancel).setOnClickListener {
+            setResult(RESULT_CANCELED)
+            finish()
+        }
+        findViewById<View>(R.id.btn_confirm).setOnClickListener { confirmSelection() }
+        findViewById<View>(R.id.btn_pick_album).setOnClickListener {
+            pickImage.launch(
+                PickVisualMediaRequest.Builder()
+                    .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    .build()
+            )
+        }
+
+        selectionOverlay.thumbnailCount = THUMBNAIL_COUNT
+        selectionOverlay.onDragMoved = { timestampUs -> onDragMoved(timestampUs) }
+        selectionOverlay.onDragReleased = { timestampUs -> onDragReleased(timestampUs) }
+
+        savedInstanceState?.getParcelableCompat<CoverResult>(STATE_PENDING_RESULT)?.let {
+            pendingResult = it
+        }
+
+        val extractor = FrameExtractor(applicationContext, videoUri)
+        frameExtractor = extractor
+
+        lifecycleScope.launch {
+            if (!extractor.prepare()) {
+                Toast.makeText(
+                    this@CoverSelectionActivity,
+                    R.string.cover_selection_load_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
+                setResult(RESULT_CANCELED)
+                finish()
+                return@launch
+            }
+
+            val durationUs = extractor.getDurationUs()
+            selectionOverlay.durationUs = durationUs
+
+            if (pendingResult == null) {
+                pendingResult = CoverResult.VideoFrame(0L)
+                val firstFrame = extractor.extractFrame(0L, precise = true)
+                firstFrame?.let { imagePreview.setImageBitmap(it) }
+                selectionOverlay.setPositionForTimestamp(0L)
+            } else {
+                val restored = pendingResult
+                if (restored is CoverResult.VideoFrame) {
+                    selectionOverlay.setPositionForTimestamp(restored.timestampUs)
+                    val frame = extractor.extractFrame(restored.timestampUs, precise = true)
+                    frame?.let { imagePreview.setImageBitmap(it) }
+                } else if (restored is CoverResult.StaticImage) {
+                    imagePreview.setImageURI(restored.imageUri)
+                }
+            }
+
+            buildFilmstrip(extractor, durationUs)
+        }
+    }
+
+    private fun buildFilmstrip(extractor: FrameExtractor, durationUs: Long) {
+        filmstripContainer.removeAllViews()
+        val thumbnailViews = ArrayList<ImageView>(THUMBNAIL_COUNT)
+        repeat(THUMBNAIL_COUNT) {
+            val thumbnailView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundResource(R.drawable.bg_thumb_placeholder)
+            }
+            filmstripContainer.addView(thumbnailView)
+            thumbnailViews.add(thumbnailView)
+        }
+
+        lifecycleScope.launch {
+            for (i in 0 until THUMBNAIL_COUNT) {
+                val timestampUs = if (THUMBNAIL_COUNT == 1) {
+                    0L
+                } else {
+                    i.toLong() * durationUs / (THUMBNAIL_COUNT - 1)
+                }
+                val bitmap = extractor.extractFrame(timestampUs, precise = true)
+                bitmap?.let { thumbnailViews[i].setImageBitmap(it) }
+            }
+        }
+    }
+
+    private fun onDragMoved(timestampUs: Long) {
+        val extractor = frameExtractor ?: return
+        previewJob?.cancel()
+        previewJob = lifecycleScope.launch {
+            val bitmap = extractor.extractFrame(timestampUs, precise = false)
+            bitmap?.let {
+                imagePreview.setImageBitmap(it)
+                pendingResult = CoverResult.VideoFrame(timestampUs)
+            }
+        }
+    }
+
+    private fun onDragReleased(timestampUs: Long) {
+        val extractor = frameExtractor ?: return
+        previewJob?.cancel()
+        previewJob = lifecycleScope.launch {
+            val bitmap = extractor.extractFrame(timestampUs, precise = true)
+            bitmap?.let { imagePreview.setImageBitmap(it) }
+            pendingResult = CoverResult.VideoFrame(timestampUs)
+        }
+    }
+
+    private fun confirmSelection() {
+        val result = pendingResult
+        if (result == null) {
+            setResult(RESULT_CANCELED)
+        } else {
+            setResult(RESULT_OK, Intent().putExtra(CoverSelectionContract.EXTRA_COVER_RESULT, result))
+        }
+        finish()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingResult?.let { outState.putParcelable(STATE_PENDING_RESULT, it) }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        previewJob?.cancel()
+        frameExtractor?.release()
+    }
+
+    private companion object {
+        const val THUMBNAIL_COUNT = 10
+        const val STATE_PENDING_RESULT = "pending_result"
+    }
+}

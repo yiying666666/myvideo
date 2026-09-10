@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/cover_bg">
+
+    <!-- Top bar -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp">
+
+        <TextView
+            android:id="@+id/btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_alignParentStart="true"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:text="@string/cover_selection_cancel"
+            android:textColor="@color/cover_text_primary"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:text="@string/cover_selection_title"
+            android:textColor="@color/cover_text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <!-- Preview -->
+    <ImageView
+        android:id="@+id/image_preview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/black"
+        android:scaleType="centerCrop" />
+
+    <!-- Filmstrip + draggable selection overlay + album entry -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="16dp">
+
+        <FrameLayout
+            android:id="@+id/filmstrip_frame"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/filmstrip_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal" />
+
+            <com.example.myapplication.cover.CoverSelectionOverlayView
+                android:id="@+id/selection_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/btn_pick_album"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_album_button"
+            android:gravity="center"
+            android:text="@string/cover_selection_pick_album"
+            android:textColor="@color/cover_text_primary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/text_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text="@string/cover_selection_hint"
+        android:textColor="@color/cover_text_hint"
+        android:textSize="12sp" />
+
+    <!-- Bottom bar -->
+    <TextView
+        android:id="@+id/btn_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:background="@drawable/bg_pill_button"
+        android:gravity="center"
+        android:text="@string/cover_selection_confirm"
+        android:textColor="@color/cover_pill_text"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+</LinearLayout>
