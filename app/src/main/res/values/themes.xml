@@ -6,4 +6,11 @@
     </style>
 
     <style name="Theme.MyApplication" parent="Base.Theme.MyApplication" />
+
+    <!-- Always-dark theme for the cover selection screen, independent of system day/night -->
+    <style name="Theme.MyApplication.CoverSelection" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/cover_bg</item>
+        <item name="android:statusBarColor">@color/cover_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

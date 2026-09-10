@@ -8,4 +8,13 @@
     <color name="page_paper">#FBFAF5</color>
     <color name="page_paper_back">#EFEDE4</color>
     <color name="page_curl_shadow">#66000000</color>
+
+    <!-- Cover selection colors -->
+    <color name="cover_bg">#1C1C1E</color>
+    <color name="cover_text_primary">#FFFFFFFF</color>
+    <color name="cover_text_hint">#99FFFFFF</color>
+    <color name="cover_pill_bg">#FFFFFFFF</color>
+    <color name="cover_pill_text">#1C1C1E</color>
+    <color name="cover_album_bg">#33FFFFFF</color>
+    <color name="cover_thumb_placeholder">#3A3A3C</color>
 </resources>

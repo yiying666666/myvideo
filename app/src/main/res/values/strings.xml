@@ -12,4 +12,16 @@
     <string name="page_indicator_format">第 %1$d / %2$d 页</string>
     <string name="cd_previous_page">上一页</string>
     <string name="cd_next_page">下一页</string>
+
+    <!-- Cover selection -->
+    <string name="cover_selection_title">封面选择</string>
+    <string name="cover_selection_cancel">取消</string>
+    <string name="cover_selection_confirm">完成</string>
+    <string name="cover_selection_pick_album">+ 相册</string>
+    <string name="cover_selection_hint">可以移动方块修改封面哦</string>
+    <string name="cover_selection_load_failed">视频加载失败</string>
+    <string name="btn_pick_video_demo">选择视频测试封面选择</string>
+    <string name="cover_result_frame_format">已选中第 %1$d ms 的视频帧作为封面</string>
+    <string name="cover_result_image">已选中相册图片作为封面</string>
+    <string name="cover_result_none">未选择封面</string>
 </resources>

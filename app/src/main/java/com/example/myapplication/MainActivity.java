@@ -1,22 +1,40 @@
 package com.example.myapplication;
 
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Button;
-import android.widget.Toast;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.example.myapplication.cover.CoverResult;
+import com.example.myapplication.cover.CoverSelectionContract;
+
 
 public class MainActivity extends AppCompatActivity {
 
+    // Manual verification only for the cover-selection feature: pick a video, then
+    // pick a cover for it, then show what came back.
+    private final ActivityResultLauncher<Uri> coverSelectionLauncher =
+            registerForActivityResult(CoverSelectionContract.INSTANCE, this::onCoverSelected);
 
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickVideoLauncher =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                if (uri != null) {
+                    coverSelectionLauncher.launch(uri);
+                }
+            });
+
+    private TextView textCoverResult;
+    private ImageView imageCoverResultDemo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,7 +47,28 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        textCoverResult = findViewById(R.id.text_cover_result);
+        imageCoverResultDemo = findViewById(R.id.image_cover_result_demo);
 
+        Button pickVideoDemoButton = findViewById(R.id.btn_pick_video_demo);
+        pickVideoDemoButton.setOnClickListener(v -> pickVideoLauncher.launch(
+                new PickVisualMediaRequest.Builder()
+                        .setMediaType(ActivityResultContracts.PickVisualMedia.VideoOnly.INSTANCE)
+                        .build()));
+    }
+
+    private void onCoverSelected(CoverResult result) {
+        if (result instanceof CoverResult.VideoFrame) {
+            long timestampMs = ((CoverResult.VideoFrame) result).getTimestampUs() / 1000L;
+            textCoverResult.setText(getString(R.string.cover_result_frame_format, timestampMs));
+            imageCoverResultDemo.setImageDrawable(null);
+        } else if (result instanceof CoverResult.StaticImage) {
+            textCoverResult.setText(R.string.cover_result_image);
+            imageCoverResultDemo.setImageURI(((CoverResult.StaticImage) result).getImageUri());
+        } else {
+            textCoverResult.setText(R.string.cover_result_none);
+            imageCoverResultDemo.setImageDrawable(null);
+        }
     }
 
 

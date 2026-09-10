@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
@@ -47,6 +48,9 @@ dependencies {
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1'
+
+    // lifecycleScope for coroutine cleanup tied to the Activity lifecycle
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
 
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit

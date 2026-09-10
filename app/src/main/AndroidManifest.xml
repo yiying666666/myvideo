@@ -21,9 +21,12 @@
             </intent-filter>
         </activity>
 
-    </application>
+        <activity
+            android:name=".cover.CoverSelectionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication.CoverSelection"
+            android:screenOrientation="portrait" />
 
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    </application>
 
 </manifest>
