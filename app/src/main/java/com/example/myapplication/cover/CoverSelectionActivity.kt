@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -14,6 +15,9 @@ import androidx.lifecycle.lifecycleScope
 import com.example.myapplication.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * JianYing/CapCut-style cover picker: drag a block along a video filmstrip to choose a
@@ -66,7 +70,6 @@ class CoverSelectionActivity : AppCompatActivity() {
             )
         }
 
-        selectionOverlay.thumbnailCount = THUMBNAIL_COUNT
         selectionOverlay.onDragMoved = { timestampUs -> onDragMoved(timestampUs) }
         selectionOverlay.onDragReleased = { timestampUs -> onDragReleased(timestampUs) }
 
@@ -112,12 +115,20 @@ class CoverSelectionActivity : AppCompatActivity() {
         }
     }
 
+    /** Lays out one thumbnail per second of video, inside a horizontally scrollable strip. */
     private fun buildFilmstrip(extractor: FrameExtractor, durationUs: Long) {
+        val thumbnailCount = max(1, ceil(durationUs.toDouble() / THUMBNAIL_INTERVAL_US).toInt())
+        val thumbnailWidthPx = (THUMBNAIL_WIDTH_DP * resources.displayMetrics.density).roundToInt()
+
+        selectionOverlay.thumbnailCount = thumbnailCount
+        (selectionOverlay.layoutParams as FrameLayout.LayoutParams).width = thumbnailWidthPx * thumbnailCount
+        selectionOverlay.requestLayout()
+
         filmstripContainer.removeAllViews()
-        val thumbnailViews = ArrayList<ImageView>(THUMBNAIL_COUNT)
-        repeat(THUMBNAIL_COUNT) {
+        val thumbnailViews = ArrayList<ImageView>(thumbnailCount)
+        repeat(thumbnailCount) {
             val thumbnailView = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                layoutParams = LinearLayout.LayoutParams(thumbnailWidthPx, LinearLayout.LayoutParams.MATCH_PARENT)
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundResource(R.drawable.bg_thumb_placeholder)
             }
@@ -126,12 +137,8 @@ class CoverSelectionActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            for (i in 0 until THUMBNAIL_COUNT) {
-                val timestampUs = if (THUMBNAIL_COUNT == 1) {
-                    0L
-                } else {
-                    i.toLong() * durationUs / (THUMBNAIL_COUNT - 1)
-                }
+            for (i in 0 until thumbnailCount) {
+                val timestampUs = (i.toLong() * THUMBNAIL_INTERVAL_US).coerceAtMost(durationUs)
                 val bitmap = extractor.extractFrame(timestampUs, precise = true)
                 bitmap?.let { thumbnailViews[i].setImageBitmap(it) }
             }
@@ -182,7 +189,9 @@ class CoverSelectionActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val THUMBNAIL_COUNT = 10
+        /** Sample one thumbnail per second of video. */
+        const val THUMBNAIL_INTERVAL_US = 1_000_000L
+        const val THUMBNAIL_WIDTH_DP = 56f
         const val STATE_PENDING_RESULT = "pending_result"
     }
 }

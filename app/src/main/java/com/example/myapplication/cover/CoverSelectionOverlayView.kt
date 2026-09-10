@@ -8,6 +8,8 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.widget.HorizontalScrollView
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
@@ -16,6 +18,13 @@ import kotlin.math.roundToLong
  *
  * The block's width always matches one thumbnail's width; dragging is clamped so it can never
  * move past either end of the strip, and the right edge maps exactly to [durationUs].
+ *
+ * The filmstrip may be wider than the screen (long videos sample one thumbnail per second) and
+ * sits inside a [HorizontalScrollView]. This view only claims a touch gesture that starts on top
+ * of the block itself - a touch elsewhere on the strip is left alone so the surrounding
+ * [HorizontalScrollView] can handle it as a normal horizontal swipe. While the block is actually
+ * being dragged, it auto-scrolls the ancestor [HorizontalScrollView] when dragged near the edge
+ * of the currently visible area, so a long timeline stays reachable without letting go.
  */
 class CoverSelectionOverlayView @JvmOverloads constructor(
     context: Context,
@@ -48,6 +57,11 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
 
     private var currentLeftPx = 0f
     private var grabOffsetX = 0f
+    private var isDragging = false
+
+    private val grabSlopPx = dpToPx(16f)
+    private val autoScrollEdgeMarginPx = dpToPx(24f)
+    private val autoScrollStepPx = dpToPx(8f).roundToInt()
 
     private val moveThrottleMs = 16L
     private var lastMoveSentAtMs = 0L
@@ -73,11 +87,23 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                val grabLeft = currentLeftPx - grabSlopPx
+                val grabRight = currentLeftPx + blockWidthPx() + grabSlopPx
+                if (event.x < grabLeft || event.x > grabRight) {
+                    // Not touching the block - let the enclosing HorizontalScrollView
+                    // handle this as a normal swipe over the strip instead.
+                    isDragging = false
+                    return false
+                }
+                isDragging = true
                 grabOffsetX = event.x - currentLeftPx
+                parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (!isDragging) return false
                 applyTouchX(event.x)
+                autoScrollIfNearEdge()
                 val now = System.currentTimeMillis()
                 if (now - lastMoveSentAtMs >= moveThrottleMs) {
                     lastMoveSentAtMs = now
@@ -86,12 +112,27 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!isDragging) return false
+                isDragging = false
+                parent?.requestDisallowInterceptTouchEvent(false)
                 applyTouchX(event.x)
                 onDragReleased?.invoke(currentTimestampUs())
                 return true
             }
         }
         return super.onTouchEvent(event)
+    }
+
+    /** Nudges the ancestor [HorizontalScrollView] while the block is dragged near its edge. */
+    private fun autoScrollIfNearEdge() {
+        val scrollView = parent?.parent as? HorizontalScrollView ?: return
+        val visibleLeft = scrollView.scrollX
+        val visibleRight = visibleLeft + scrollView.width
+        val blockRight = currentLeftPx + blockWidthPx()
+        when {
+            currentLeftPx < visibleLeft + autoScrollEdgeMarginPx -> scrollView.scrollBy(-autoScrollStepPx, 0)
+            blockRight > visibleRight - autoScrollEdgeMarginPx -> scrollView.scrollBy(autoScrollStepPx, 0)
+        }
     }
 
     private fun applyTouchX(touchX: Float) {
