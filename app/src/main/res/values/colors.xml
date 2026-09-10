@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Photo book / page-curl colors -->
+    <color name="book_background">#1B1B1B</color>
+    <color name="page_paper">#FBFAF5</color>
+    <color name="page_paper_back">#EFEDE4</color>
+    <color name="page_curl_shadow">#66000000</color>
+</resources>

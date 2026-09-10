@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">My Application</string>
+
+    <string name="btn_open_photo_book">制作相册翻书</string>
+
+    <string name="btn_open_backpack">我的背包</string>
+    <string name="btn_open_reward_coins">我的赏币</string>
+    <string name="toast_app_not_installed">未安装可处理该协议的应用</string>
+
+    <string name="photo_book_empty_hint">还没有照片\n点击下方按钮从相册选择照片，制作可以翻阅的相册书吧</string>
+    <string name="btn_pick_photos">选择照片</string>
+    <string name="page_indicator_format">第 %1$d / %2$d 页</string>
+    <string name="cd_previous_page">上一页</string>
+    <string name="cd_next_page">下一页</string>
+</resources>

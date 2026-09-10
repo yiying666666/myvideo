@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/photo_book_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/book_background"
+    tools:context=".bookview.PhotoBookActivity">
+
+    <!-- The book itself: renders the current page and the paper-curl drag animation. -->
+    <com.example.myapplication.bookview.PageCurlView
+        android:id="@+id/page_curl_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Empty state, shown until the user has picked at least one photo. -->
+    <LinearLayout
+        android:id="@+id/empty_state"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <TextView
+            android:id="@+id/text_empty_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:gravity="center"
+            android:text="@string/photo_book_empty_hint"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btn_pick_photos_empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_pick_photos" />
+    </LinearLayout>
+
+    <!-- Top bar: page indicator + a button to (re)pick photos. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/text_page_indicator"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btn_pick_photos"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_pick_photos"
+            android:textColor="@color/white" />
+    </LinearLayout>
+
+    <!-- Edge tap targets: convenient prev/next flip without dragging (also used by a11y). -->
+    <ImageButton
+        android:id="@+id/btn_prev_page"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center_vertical|start"
+        android:layout_marginStart="4dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/cd_previous_page"
+        android:src="@android:drawable/ic_media_previous"
+        app:tint="@color/white" />
+
+    <ImageButton
+        android:id="@+id/btn_next_page"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center_vertical|end"
+        android:layout_marginEnd="4dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/cd_next_page"
+        android:src="@android:drawable/ic_media_next"
+        app:tint="@color/white" />
+
+</FrameLayout>
