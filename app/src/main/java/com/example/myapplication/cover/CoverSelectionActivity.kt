@@ -4,14 +4,14 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.myapplication.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -26,10 +26,11 @@ import kotlin.math.roundToInt
 class CoverSelectionActivity : AppCompatActivity() {
 
     private lateinit var imagePreview: ImageView
-    private lateinit var filmstripContainer: LinearLayout
+    private lateinit var filmstripRecycler: RecyclerView
     private lateinit var selectionOverlay: CoverSelectionOverlayView
 
     private var frameExtractor: FrameExtractor? = null
+    private var thumbnailAdapter: ThumbnailAdapter? = null
     private var previewJob: Job? = null
     private var pendingResult: CoverResult? = null
 
@@ -53,7 +54,7 @@ class CoverSelectionActivity : AppCompatActivity() {
         }
 
         imagePreview = findViewById(R.id.image_preview)
-        filmstripContainer = findViewById(R.id.filmstrip_container)
+        filmstripRecycler = findViewById(R.id.filmstrip_recycler)
         selectionOverlay = findViewById(R.id.selection_overlay)
 
         findViewById<View>(R.id.btn_cancel).setOnClickListener {
@@ -71,6 +72,13 @@ class CoverSelectionActivity : AppCompatActivity() {
 
         selectionOverlay.onDragMoved = { timestampUs -> onDragMoved(timestampUs) }
         selectionOverlay.onDragReleased = { timestampUs -> onDragReleased(timestampUs) }
+        // RecyclerView 的滚动偏移和滚动请求通过 lambda 注入，避免 Overlay 直接依赖 RecyclerView
+        selectionOverlay.getScrollOffset = {
+            if (filmstripRecycler.layoutManager != null)
+                filmstripRecycler.computeHorizontalScrollOffset()
+            else 0
+        }
+        selectionOverlay.onScrollBy = { dx -> filmstripRecycler.scrollBy(dx, 0) }
 
         savedInstanceState?.getParcelableCompat<CoverResult>(STATE_PENDING_RESULT)?.let {
             pendingResult = it
@@ -92,7 +100,9 @@ class CoverSelectionActivity : AppCompatActivity() {
             }
 
             val durationUs = extractor.getDurationUs()
-            selectionOverlay.durationUs = durationUs
+
+            // 必须先初始化适配器，才能让 Overlay 获取到正确的 thumbnailWidthPx / totalContentWidthPx
+            buildFilmstrip(extractor, durationUs)
 
             if (pendingResult == null) {
                 pendingResult = CoverResult.VideoFrame(0L)
@@ -102,45 +112,66 @@ class CoverSelectionActivity : AppCompatActivity() {
             } else {
                 val restored = pendingResult
                 if (restored is CoverResult.VideoFrame) {
-                    selectionOverlay.setPositionForTimestamp(restored.timestampUs)
+                    scrollToTimestampThenSetOverlay(restored.timestampUs, durationUs)
                     val frame = extractor.extractFrame(restored.timestampUs, precise = true)
                     frame?.let { imagePreview.setImageBitmap(it) }
                 } else if (restored is CoverResult.StaticImage) {
                     imagePreview.setImageURI(restored.imageUri)
+                    selectionOverlay.setPositionForTimestamp(0L)
                 }
             }
-
-            buildFilmstrip(extractor, durationUs)
         }
     }
 
-    /** 每秒视频采样一张缩略图，放进一条可横向滚动的时间轴。 */
+    /**
+     * 构建时间轴：创建 RecyclerView 适配器，按需懒加载缩略图，避免长视频一次性占满内存。
+     * 每秒采样一帧，时间轴可横向滚动。
+     */
     private fun buildFilmstrip(extractor: FrameExtractor, durationUs: Long) {
         val thumbnailCount = max(1, ceil(durationUs.toDouble() / THUMBNAIL_INTERVAL_US).toInt())
         val thumbnailWidthPx = (THUMBNAIL_WIDTH_DP * resources.displayMetrics.density).roundToInt()
 
-        selectionOverlay.thumbnailCount = thumbnailCount
-        (selectionOverlay.layoutParams as FrameLayout.LayoutParams).width = thumbnailWidthPx * thumbnailCount
-        selectionOverlay.requestLayout()
+        selectionOverlay.thumbnailWidthPx = thumbnailWidthPx
+        selectionOverlay.totalContentWidthPx = thumbnailWidthPx * thumbnailCount
+        selectionOverlay.durationUs = durationUs
 
-        filmstripContainer.removeAllViews()
-        val thumbnailViews = ArrayList<ImageView>(thumbnailCount)
-        repeat(thumbnailCount) {
-            val thumbnailView = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(thumbnailWidthPx, LinearLayout.LayoutParams.MATCH_PARENT)
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundResource(R.drawable.bg_thumb_placeholder)
-            }
-            filmstripContainer.addView(thumbnailView)
-            thumbnailViews.add(thumbnailView)
+        val adapter = ThumbnailAdapter(
+            count = thumbnailCount,
+            widthPx = thumbnailWidthPx,
+            extractor = extractor,
+            durationUs = durationUs,
+            scope = lifecycleScope
+        )
+        thumbnailAdapter = adapter
+
+        filmstripRecycler.apply {
+            layoutManager = LinearLayoutManager(
+                this@CoverSelectionActivity,
+                LinearLayoutManager.HORIZONTAL,
+                false
+            )
+            this.adapter = adapter
+            setHasFixedSize(true)
         }
+    }
 
-        lifecycleScope.launch {
-            for (i in 0 until thumbnailCount) {
-                val timestampUs = (i.toLong() * THUMBNAIL_INTERVAL_US).coerceAtMost(durationUs)
-                val bitmap = extractor.extractFrame(timestampUs, precise = true)
-                bitmap?.let { thumbnailViews[i].setImageBitmap(it) }
-            }
+    /**
+     * 旋转/重建后将 RecyclerView 滚到目标时间点附近（居中显示），再更新方框位置。
+     * 用 post{} 等待 RecyclerView 完成布局后再操作，确保 computeHorizontalScrollOffset
+     * 能返回正确值。
+     */
+    private fun scrollToTimestampThenSetOverlay(timestampUs: Long, durationUs: Long) {
+        filmstripRecycler.post {
+            val thumbWidthPx = selectionOverlay.thumbnailWidthPx
+            val totalPx = selectionOverlay.totalContentWidthPx
+            val maxAbsolute = (totalPx - thumbWidthPx).toFloat().coerceAtLeast(0f)
+            val targetAbsolute = if (durationUs <= 0L) 0f
+                                 else (timestampUs.toFloat() / durationUs) * maxAbsolute
+            // 让方框目标位置出现在可见区中央
+            val targetScroll = (targetAbsolute - filmstripRecycler.width / 2f)
+                .toInt().coerceAtLeast(0)
+            filmstripRecycler.scrollBy(targetScroll, 0)
+            selectionOverlay.setPositionForTimestamp(timestampUs)
         }
     }
 
@@ -184,6 +215,7 @@ class CoverSelectionActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         previewJob?.cancel()
+        thumbnailAdapter?.releaseAll()
         frameExtractor?.release()
     }
 

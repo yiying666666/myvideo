@@ -49,31 +49,23 @@
         android:paddingHorizontal="12dp"
         android:paddingTop="16dp">
 
-        <HorizontalScrollView
-            android:id="@+id/filmstrip_scroll"
+        <FrameLayout
+            android:id="@+id/filmstrip_frame"
             android:layout_width="0dp"
             android:layout_height="56dp"
-            android:layout_weight="1"
-            android:overScrollMode="never"
-            android:scrollbars="none">
+            android:layout_weight="1">
 
-            <FrameLayout
-                android:id="@+id/filmstrip_frame"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/filmstrip_recycler"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:overScrollMode="never" />
 
-                <LinearLayout
-                    android:id="@+id/filmstrip_container"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal" />
-
-                <com.example.myapplication.cover.CoverSelectionOverlayView
-                    android:id="@+id/selection_overlay"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent" />
-            </FrameLayout>
-        </HorizontalScrollView>
+            <com.example.myapplication.cover.CoverSelectionOverlayView
+                android:id="@+id/selection_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/btn_pick_album"

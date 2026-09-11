@@ -8,38 +8,44 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import android.widget.HorizontalScrollView
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
- * 在由 [thumbnailCount] 张等宽缩略图组成的时间轴上绘制一个可拖动的圆角"取景框"，
- * 并把该框所在位置对应的时间点报告出去，模仿剪映/CapCut 的封面选择交互。
+ * 绘制在 RecyclerView 上方的可拖动"取景框"，与 RecyclerView 同为兄弟节点
+ *（两者都是 match_parent，覆盖同一块屏幕区域）。
  *
- * 方框宽度始终等于一张缩略图的宽度；拖动会被限制在时间轴范围内，右边缘正好对应 [durationUs]。
+ * 方框宽度固定为一张缩略图的宽度（[thumbnailWidthPx]），位置用屏幕空间坐标
+ * [currentLeftPx] 表示（0 … width - blockWidth）。对应的实际时间点需要结合
+ * [getScrollOffset] 提供的 RecyclerView 横向滚动偏移一起换算。
  *
- * 视频较长时（每秒采样一张缩略图）时间轴可能比屏幕更宽，因此外面包了一层
- * [HorizontalScrollView]。本 View 只在手指按下的位置恰好在方框上时才接管这次触摸手势——
- * 按在时间轴其它地方的触摸不会被消费，会交给外层的 [HorizontalScrollView] 当作普通的
- * 横向滑动来处理。当方框正在被拖动、且拖到当前可见区域的边缘附近时，会自动带动
- * [HorizontalScrollView] 滚动，这样即使时间轴很长也不用松手就能一直拖过去。
+ * 手指按在方框上才消费本次触摸事件；按在时间轴空白处时返回 false，触摸事件
+ * 穿透到下层的 RecyclerView，当作普通的横向滚动处理。
+ *
+ * 拖动到可见区边缘时，通过 [onScrollBy] 回调请求 RecyclerView 继续滚动，
+ * 实现不松手就能把方框从头拖到尾的效果。
  */
 class CoverSelectionOverlayView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    /** 视频总时长（微秒）。必须在有明确值之后才设置，否则拖动没有意义。 */
+    /** 视频总时长（微秒）。 */
     var durationUs: Long = 0L
 
-    /** 下方时间轴上排布的缩略图数量。 */
-    var thumbnailCount: Int = 1
-        set(value) {
-            field = value.coerceAtLeast(1)
-            invalidate()
-        }
+    /** 一张缩略图的像素宽度，同时也是方框的宽度。 */
+    var thumbnailWidthPx: Int = 0
 
-    /** 拖动过程中持续触发（已做节流），带上方框当前所在位置对应的时间点。 */
+    /** 时间轴内容的总像素宽度（= thumbnailWidthPx × 缩略图总数）。 */
+    var totalContentWidthPx: Int = 0
+
+    /** 返回 RecyclerView 当前的横向滚动偏移（像素）。 */
+    var getScrollOffset: (() -> Int) = { 0 }
+
+    /** 请求 RecyclerView 横向滚动 dx 像素（负值向左，正值向右）。 */
+    var onScrollBy: ((dx: Int) -> Unit) = {}
+
+    /** 拖动过程中持续触发（已做节流），带上方框当前对应的时间点。 */
     var onDragMoved: ((timestampUs: Long) -> Unit)? = null
 
     /** 手指抬起时触发一次，带上最终要精确锁定的时间点。 */
@@ -53,6 +59,7 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
     private val cornerRadiusPx = dpToPx(6f)
     private val drawRect = RectF()
 
+    /** 方框左边缘在屏幕空间的位置（0 … width - blockWidth）。 */
     private var currentLeftPx = 0f
     private var grabOffsetX = 0f
     private var isDragging = false
@@ -66,19 +73,33 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
 
     private fun dpToPx(value: Float): Float = value * resources.displayMetrics.density
 
-    private fun blockWidthPx(): Float =
-        if (width == 0) 0f else width.toFloat() / thumbnailCount
+    private fun blockWidth(): Float = thumbnailWidthPx.toFloat()
 
-    private fun maxLeftPx(): Float = (width - blockWidthPx()).coerceAtLeast(0f)
+    /** 方框左边缘在屏幕空间允许的最大值。 */
+    private fun maxVisualLeft(): Float = (width - blockWidth()).coerceAtLeast(0f)
 
-    /** 将方框移动到与 [timestampUs] 对应的位置，且不触发任何拖动回调。 */
+    /** 方框左边缘在时间轴全局坐标（含滚动偏移）中的绝对像素位置。 */
+    private fun absoluteLeftPx(): Float = getScrollOffset().toFloat() + currentLeftPx
+
+    /** 方框左边缘在时间轴全局坐标中允许的最大值（= 总内容宽 - 方框宽）。 */
+    private fun maxAbsoluteLeft(): Float = (totalContentWidthPx - blockWidth()).coerceAtLeast(0f)
+
+    /** 根据当前位置和滚动偏移换算出对应的视频时间点。 */
+    private fun currentTimestampUs(): Long {
+        val maxAbs = maxAbsoluteLeft()
+        if (durationUs <= 0L || maxAbs <= 0f) return 0L
+        return (absoluteLeftPx() / maxAbs * durationUs).roundToLong().coerceIn(0L, durationUs)
+    }
+
+    /**
+     * 将方框移到 [timestampUs] 对应的屏幕位置，不触发任何拖动回调。
+     * 若需先滚动 RecyclerView 到合适位置，应在调用本方法前完成。
+     */
     fun setPositionForTimestamp(timestampUs: Long) {
-        val maxLeft = maxLeftPx()
-        currentLeftPx = if (durationUs <= 0L || maxLeft <= 0f) {
-            0f
-        } else {
-            (timestampUs.toFloat() / durationUs).coerceIn(0f, 1f) * maxLeft
-        }
+        val maxAbs = maxAbsoluteLeft()
+        val targetAbsolute = if (durationUs <= 0L || maxAbs <= 0f) 0f
+                             else (timestampUs.toFloat() / durationUs) * maxAbs
+        currentLeftPx = (targetAbsolute - getScrollOffset()).coerceIn(0f, maxVisualLeft())
         invalidate()
     }
 
@@ -86,10 +107,9 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 val grabLeft = currentLeftPx - grabSlopPx
-                val grabRight = currentLeftPx + blockWidthPx() + grabSlopPx
+                val grabRight = currentLeftPx + blockWidth() + grabSlopPx
                 if (event.x < grabLeft || event.x > grabRight) {
-                    // 没有按在方框上——交给外层的 HorizontalScrollView
-                    // 当作普通的时间轴滑动来处理。
+                    // 没有按在方框上——放行给下层 RecyclerView 处理普通滚动
                     isDragging = false
                     return false
                 }
@@ -121,39 +141,30 @@ class CoverSelectionOverlayView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
-    /** 方框拖动到可见区域边缘附近时，带动外层的 [HorizontalScrollView] 滚动一点。 */
+    /** 拖到可见区边缘时，通过回调请求 RecyclerView 继续横向滚动。 */
     private fun autoScrollIfNearEdge() {
-        val scrollView = parent?.parent as? HorizontalScrollView ?: return
-        val visibleLeft = scrollView.scrollX
-        val visibleRight = visibleLeft + scrollView.width
-        val blockRight = currentLeftPx + blockWidthPx()
         when {
-            currentLeftPx < visibleLeft + autoScrollEdgeMarginPx -> scrollView.scrollBy(-autoScrollStepPx, 0)
-            blockRight > visibleRight - autoScrollEdgeMarginPx -> scrollView.scrollBy(autoScrollStepPx, 0)
+            currentLeftPx < autoScrollEdgeMarginPx ->
+                onScrollBy(-autoScrollStepPx)
+            currentLeftPx + blockWidth() > width - autoScrollEdgeMarginPx ->
+                onScrollBy(autoScrollStepPx)
         }
     }
 
     private fun applyTouchX(touchX: Float) {
-        currentLeftPx = (touchX - grabOffsetX).coerceIn(0f, maxLeftPx())
+        currentLeftPx = (touchX - grabOffsetX).coerceIn(0f, maxVisualLeft())
         invalidate()
-    }
-
-    private fun currentTimestampUs(): Long {
-        val maxLeft = maxLeftPx()
-        if (durationUs <= 0L || maxLeft <= 0f) return 0L
-        val progress = currentLeftPx / maxLeft
-        return (progress * durationUs).roundToLong().coerceIn(0L, durationUs)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val blockWidth = blockWidthPx()
-        if (blockWidth <= 0f) return
+        val bw = blockWidth()
+        if (bw <= 0f) return
         val inset = borderPaint.strokeWidth / 2f
         drawRect.set(
             currentLeftPx + inset,
             inset,
-            currentLeftPx + blockWidth - inset,
+            currentLeftPx + bw - inset,
             height - inset
         )
         canvas.drawRoundRect(drawRect, cornerRadiusPx, cornerRadiusPx, borderPaint)
