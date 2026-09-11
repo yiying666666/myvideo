@@ -10,12 +10,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Wraps [MediaMetadataRetriever] to pull frames out of a video off the main thread.
+ * 包装 [MediaMetadataRetriever]，在非主线程上从视频中取帧。
  *
- * A single [MediaMetadataRetriever] instance is not safe to drive from more than one
- * thread at a time, so every call is serialized through [mutex] - this also means a
- * cancelled caller (e.g. a superseded drag position) simply drops out of the queue
- * instead of racing a still-running extraction.
+ * 同一个 [MediaMetadataRetriever] 实例不能被多个线程同时调用，所以每次调用都通过
+ * [mutex] 串行化——这也意味着一个被取消的调用（比如被更新的拖动位置取代）只会
+ * 直接从队列里退出，不会和还在进行中的取帧操作产生竞争。
  */
 class FrameExtractor(context: Context, private val videoUri: Uri) {
 
@@ -26,7 +25,7 @@ class FrameExtractor(context: Context, private val videoUri: Uri) {
     private var prepared = false
     private var durationUs: Long = 0L
 
-    /** Opens the video and reads its duration. Returns false if the video can't be read. */
+    /** 打开视频并读取其时长；如果视频无法读取则返回 false。 */
     suspend fun prepare(): Boolean = mutex.withLock {
         withContext(Dispatchers.IO) {
             if (prepared) return@withContext true
@@ -48,11 +47,11 @@ class FrameExtractor(context: Context, private val videoUri: Uri) {
     fun getDurationUs(): Long = durationUs
 
     /**
-     * Extracts the frame nearest [timestampUs].
-     * [precise] = false uses [MediaMetadataRetriever.OPTION_CLOSEST_SYNC] (nearest keyframe,
-     * fast - used while actively dragging). [precise] = true uses
-     * [MediaMetadataRetriever.OPTION_CLOSEST] (decodes to the exact frame, slower - used for
-     * the filmstrip thumbnails and to lock in the final selection on release).
+     * 取出离 [timestampUs] 最近的一帧。
+     * [precise] = false 时使用 [MediaMetadataRetriever.OPTION_CLOSEST_SYNC]（最近的关键帧，
+     * 速度快——用于拖动过程中实时刷新）。[precise] = true 时使用
+     * [MediaMetadataRetriever.OPTION_CLOSEST]（解码出精确帧，速度慢——用于生成时间轴缩略图，
+     * 以及松手后锁定最终选中的封面）。
      */
     suspend fun extractFrame(timestampUs: Long, precise: Boolean): Bitmap? = mutex.withLock {
         withContext(Dispatchers.IO) {
@@ -74,7 +73,7 @@ class FrameExtractor(context: Context, private val videoUri: Uri) {
         try {
             retriever.release()
         } catch (e: Exception) {
-            // Already released, or never successfully prepared - safe to ignore.
+            // 已经释放过，或从未成功 prepare 过——可以安全忽略。
         }
     }
 }

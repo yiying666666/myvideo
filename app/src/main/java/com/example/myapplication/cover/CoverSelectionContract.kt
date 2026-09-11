@@ -8,10 +8,8 @@ import androidx.activity.result.contract.ActivityResultContract
 import kotlinx.parcelize.Parcelize
 
 /**
- * The cover chosen on the [CoverSelectionActivity] screen: either a specific
- * timestamp within the source video, or a static image picked from the album
- * (in which case the item still publishes as a video - only the cover image
- * changes).
+ * 在 [CoverSelectionActivity] 页面选中的封面：可以是源视频里的某个具体时间点，
+ * 也可以是从相册选的一张静态图片（这种情况下发布形式仍然是视频——只是封面图变了）。
  */
 sealed interface CoverResult : Parcelable {
 
@@ -23,8 +21,8 @@ sealed interface CoverResult : Parcelable {
 }
 
 /**
- * `ActivityResultContract` for launching [CoverSelectionActivity] with a video [Uri]
- * and getting back the chosen [CoverResult] (or null if the user cancelled).
+ * 用于启动 [CoverSelectionActivity] 的 `ActivityResultContract`：传入视频的 [Uri]，
+ * 拿回用户选中的 [CoverResult]（用户取消则返回 null）。
  */
 object CoverSelectionContract : ActivityResultContract<Uri, CoverResult?>() {
 

@@ -21,8 +21,7 @@ import com.example.myapplication.cover.CoverSelectionContract;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Manual verification only for the cover-selection feature: pick a video, then
-    // pick a cover for it, then show what came back.
+    // 仅用于人工验证封面选择功能：选一个视频，再为它选一个封面，然后展示回传的结果。
     private final ActivityResultLauncher<Uri> coverSelectionLauncher =
             registerForActivityResult(CoverSelectionContract.INSTANCE, this::onCoverSelected);
 

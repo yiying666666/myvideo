@@ -20,9 +20,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * JianYing/CapCut-style cover picker: drag a block along a video filmstrip to choose a
- * frame as the cover, or fall back to a static image from the album. Returns the choice
- * via [CoverSelectionContract].
+ * 仿剪映/CapCut 的封面选择页：沿视频时间轴拖动方框选取一帧作为封面，
+ * 也可以从相册选一张静态图片顶替。选择结果通过 [CoverSelectionContract] 返回。
  */
 class CoverSelectionActivity : AppCompatActivity() {
 
@@ -115,7 +114,7 @@ class CoverSelectionActivity : AppCompatActivity() {
         }
     }
 
-    /** Lays out one thumbnail per second of video, inside a horizontally scrollable strip. */
+    /** 每秒视频采样一张缩略图，放进一条可横向滚动的时间轴。 */
     private fun buildFilmstrip(extractor: FrameExtractor, durationUs: Long) {
         val thumbnailCount = max(1, ceil(durationUs.toDouble() / THUMBNAIL_INTERVAL_US).toInt())
         val thumbnailWidthPx = (THUMBNAIL_WIDTH_DP * resources.displayMetrics.density).roundToInt()
@@ -189,7 +188,7 @@ class CoverSelectionActivity : AppCompatActivity() {
     }
 
     private companion object {
-        /** Sample one thumbnail per second of video. */
+        /** 每秒视频采样一张缩略图。 */
         const val THUMBNAIL_INTERVAL_US = 1_000_000L
         const val THUMBNAIL_WIDTH_DP = 56f
         const val STATE_PENDING_RESULT = "pending_result"

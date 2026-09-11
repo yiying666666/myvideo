@@ -6,8 +6,8 @@ import android.os.Bundle
 import android.os.Parcelable
 
 /**
- * [Intent.getParcelableExtra] without the deprecation warning on API 33+,
- * while staying compatible down to minSdk 24.
+ * 等价于 [Intent.getParcelableExtra]，但在 API 33+ 上不会触发废弃警告，
+ * 同时保持对 minSdk 24 的兼容。
  */
 inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(key: String): T? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -18,8 +18,8 @@ inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(key: String)
     }
 
 /**
- * [Bundle.getParcelable] without the deprecation warning on API 33+,
- * while staying compatible down to minSdk 24.
+ * 等价于 [Bundle.getParcelable]，但在 API 33+ 上不会触发废弃警告，
+ * 同时保持对 minSdk 24 的兼容。
  */
 inline fun <reified T : Parcelable> Bundle.getParcelableCompat(key: String): T? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
