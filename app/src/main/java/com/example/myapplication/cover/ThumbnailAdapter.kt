@@ -26,6 +26,7 @@ class ThumbnailAdapter(
     private val widthPx: Int,
     private val extractor: FrameExtractor,
     private val durationUs: Long,
+    private val intervalUs: Long,
     private val scope: CoroutineScope
 ) : RecyclerView.Adapter<ThumbnailAdapter.VH>() {
 
@@ -69,7 +70,7 @@ class ThumbnailAdapter(
 
         holder.image.setImageDrawable(null)   // 展示占位色块
 
-        val timestampUs = (position.toLong() * 1_000_000L).coerceAtMost(durationUs)
+        val timestampUs = (position.toLong() * intervalUs).coerceAtMost(durationUs)
         jobs[position] = scope.launch {
             val bm = extractor.extractFrame(timestampUs, precise = true)
             if (bm != null) {

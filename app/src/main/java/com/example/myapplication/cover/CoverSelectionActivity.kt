@@ -15,8 +15,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.myapplication.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.ceil
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -128,18 +126,22 @@ class CoverSelectionActivity : AppCompatActivity() {
      * 每秒采样一帧，时间轴可横向滚动。
      */
     private fun buildFilmstrip(extractor: FrameExtractor, durationUs: Long) {
-        val thumbnailCount = max(1, ceil(durationUs.toDouble() / THUMBNAIL_INTERVAL_US).toInt())
+        val thumbnailCount = THUMBNAIL_COUNT
         val thumbnailWidthPx = (THUMBNAIL_WIDTH_DP * resources.displayMetrics.density).roundToInt()
 
         selectionOverlay.thumbnailWidthPx = thumbnailWidthPx
         selectionOverlay.totalContentWidthPx = thumbnailWidthPx * thumbnailCount
         selectionOverlay.durationUs = durationUs
 
+        // 均匀分布：0, durationUs/(count-1), 2*durationUs/(count-1), …, durationUs
+        val intervalUs = if (thumbnailCount <= 1) 0L else durationUs / (thumbnailCount - 1)
+
         val adapter = ThumbnailAdapter(
             count = thumbnailCount,
             widthPx = thumbnailWidthPx,
             extractor = extractor,
             durationUs = durationUs,
+            intervalUs = intervalUs,
             scope = lifecycleScope
         )
         thumbnailAdapter = adapter
@@ -220,8 +222,8 @@ class CoverSelectionActivity : AppCompatActivity() {
     }
 
     private companion object {
-        /** 每秒视频采样一张缩略图。 */
-        const val THUMBNAIL_INTERVAL_US = 1_000_000L
+        /** 无论视频多长，时间轴始终均匀取 10 帧缩略图。 */
+        const val THUMBNAIL_COUNT = 10
         const val THUMBNAIL_WIDTH_DP = 56f
         const val STATE_PENDING_RESULT = "pending_result"
     }
